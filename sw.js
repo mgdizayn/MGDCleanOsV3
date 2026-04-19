@@ -12,7 +12,7 @@
      dahil otomatik algılanır — start_url ile eşleşir)
    ═══════════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'mgd-cleanos-v3.1';
+const CACHE_VERSION = 'mgd-cleanos-v3.2';
 
 /* Uygulama kabuğu — her zaman önbelleklenir */
 const SHELL_URLS = [
@@ -159,6 +159,11 @@ self.addEventListener('push', event => {
     let data = {};
     try { data = event.data ? event.data.json() : {}; } catch(e) {}
 
+    // gorev_id önce payload'dan gelir, yoksa localStorage'dan al
+    const gorevId     = data.gorev_id     || null;
+    const personelId  = data.personel_id  || null;
+    const backendUrl  = data.backend_url  || '';
+
     const title = data.title || '⏰ MGD CleanOS';
     const options = {
         body: data.body || 'Görev hatırlatması',
@@ -168,13 +173,13 @@ self.addEventListener('push', event => {
         renotify: true,
         requireInteraction: true,
         data: {
-            url: data.url || './',
-            gorev_id: data.gorev_id || null,
-            personel_id: data.personel_id || null,
-            backend_url: data.backend_url || ''
+            url:         data.url || './',
+            gorev_id:    gorevId,
+            personel_id: personelId,
+            backend_url: backendUrl
         },
         actions: [
-            { action: 'bitir', title: '✅ Görevi Bitir' },
+            { action: 'bitir',  title: '✅ Görevi Bitir' },
             { action: 'ertele', title: '⏰ 15 dk Sonra Hatırlat' }
         ]
     };

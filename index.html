@@ -1703,8 +1703,12 @@
                             birim_kodu: yanit.aktif_islem.birim_kodu,
                             birim_adi: yanit.aktif_islem.birim_adi,
                             ozellikli: yanit.aktif_islem.ozellikli || false,
-                            baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString()
+                            baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString(),
+                            temizlik_id: yanit.aktif_islem.id || null
                         };
+                        if (state.aktifIslem.temizlik_id) {
+                            localStorage.setItem('mgd-aktif-temizlik-id', String(state.aktifIslem.temizlik_id));
+                        }
                         showJobPage();
                     } else {
                         state.aktifIslem = null;
@@ -2065,11 +2069,22 @@
                     });
 
                     state.aktifIslem = {
-                        birim_kodu: state.seciliBirimKodu,
-                        birim_adi:  state.seciliBirimAdi,
-                        ozellikli:  state.seciliBirimOzellikli,
-                        baslama_zamani: new Date().toISOString()
+                        birim_kodu:    state.seciliBirimKodu,
+                        birim_adi:     state.seciliBirimAdi,
+                        ozellikli:     state.seciliBirimOzellikli,
+                        baslama_zamani: new Date().toISOString(),
+                        temizlik_id:   yanit.temizlik_id || yanit.kayit_id || null
                     };
+
+                    // Push aboneliği yap ve personel id'yi kaydet
+                    const backendUrl = window.MGD_BACKEND_URL || '';
+                    if (backendUrl && state.aktifIslem.temizlik_id) {
+                        localStorage.setItem('mgd-personel-id', state.tcNo);
+                        localStorage.setItem('mgd-aktif-temizlik-id', String(state.aktifIslem.temizlik_id));
+                        if (window.MGDPush && window.MGD_VAPID_PUBLIC_KEY) {
+                            window.MGDPush.pushAboneOl(state.tcNo, backendUrl).catch(() => {});
+                        }
+                    }
 
                     showInfoModal('✓ Başarılı',
                         `Sayın ${state.personelAd},<br><br>✅ <b>${state.seciliBirimAdi}</b> temizliği başlatıldı!<br><br>🔐 Birim doğrulaması yapıldı.`);
@@ -2284,8 +2299,12 @@
                                     birim_kodu: yanit.aktif_islem.birim_kodu,
                                     birim_adi:  yanit.aktif_islem.birim_adi,
                                     ozellikli:  yanit.aktif_islem.ozellikli || false,
-                                    baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString()
+                                    baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString(),
+                                    temizlik_id: yanit.aktif_islem.id || null
                                 };
+                                if (state.aktifIslem.temizlik_id) {
+                                    localStorage.setItem('mgd-aktif-temizlik-id', String(state.aktifIslem.temizlik_id));
+                                }
                                 showJobPage();
                             } else {
                                 state.aktifIslem = null;
