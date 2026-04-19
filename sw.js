@@ -12,7 +12,7 @@
      dahil otomatik algılanır — start_url ile eşleşir)
    ═══════════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'mgd-cleanos-v3';
+const CACHE_VERSION = 'mgd-cleanos-v3.1';
 
 /* Uygulama kabuğu — her zaman önbelleklenir */
 const SHELL_URLS = [
