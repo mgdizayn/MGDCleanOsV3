@@ -1767,10 +1767,9 @@
 
                     showConfirmPage();
                 } else {
-                    state.seciliBirimAdi = `Birim: ${code}`;
-                    state.seciliBirimTalimatlar = '';
-                    state.seciliBirimOzellikli = false;
-                    showConfirmPage();
+                    const hataMsg = yanit?.message || 'Bu birim için yetkiniz yok.';
+                    showInfoModal('Erişim Engellendi', hataMsg);
+                    showQRPage();
                 }
             } catch (err) {
                 showInfoModal('Hata', `Birim bilgisi alınamadı: ${err.message}`);
