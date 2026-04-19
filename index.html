@@ -1703,12 +1703,8 @@
                             birim_kodu: yanit.aktif_islem.birim_kodu,
                             birim_adi: yanit.aktif_islem.birim_adi,
                             ozellikli: yanit.aktif_islem.ozellikli || false,
-                            baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString(),
-                            temizlik_id: yanit.aktif_islem.id || null
+                            baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString()
                         };
-                        if (state.aktifIslem.temizlik_id) {
-                            localStorage.setItem('mgd-aktif-temizlik-id', String(state.aktifIslem.temizlik_id));
-                        }
                         showJobPage();
                     } else {
                         state.aktifIslem = null;
@@ -2069,22 +2065,11 @@
                     });
 
                     state.aktifIslem = {
-                        birim_kodu:    state.seciliBirimKodu,
-                        birim_adi:     state.seciliBirimAdi,
-                        ozellikli:     state.seciliBirimOzellikli,
-                        baslama_zamani: new Date().toISOString(),
-                        temizlik_id:   yanit.temizlik_id || yanit.kayit_id || null
+                        birim_kodu: state.seciliBirimKodu,
+                        birim_adi:  state.seciliBirimAdi,
+                        ozellikli:  state.seciliBirimOzellikli,
+                        baslama_zamani: new Date().toISOString()
                     };
-
-                    // Push aboneliği yap ve personel id'yi kaydet
-                    const backendUrl = window.MGD_BACKEND_URL || '';
-                    if (backendUrl && state.aktifIslem.temizlik_id) {
-                        localStorage.setItem('mgd-personel-id', state.tcNo);
-                        localStorage.setItem('mgd-aktif-temizlik-id', String(state.aktifIslem.temizlik_id));
-                        if (window.MGDPush && window.MGD_VAPID_PUBLIC_KEY) {
-                            window.MGDPush.pushAboneOl(state.tcNo, backendUrl).catch(() => {});
-                        }
-                    }
 
                     showInfoModal('✓ Başarılı',
                         `Sayın ${state.personelAd},<br><br>✅ <b>${state.seciliBirimAdi}</b> temizliği başlatıldı!<br><br>🔐 Birim doğrulaması yapıldı.`);
@@ -2269,59 +2254,68 @@
             connectMQTT();
 
             // ── Günlük TC Cache Kontrolü ──
-            // MQTT bağlantısı kurulduktan sonra cache'den otomatik giriş yap
-            const cachedTC = tcCacheOku();
-            if (cachedTC) {
-                // Bağlantı beklenerek otomatik kontrol gönder
-                const autoLogin = async () => {
-                    // MQTT'nin bağlanmasını bekle (max 8 sn)
-                    for (let i = 0; i < 40; i++) {
-                        if (isConnected) break;
-                        await new Promise(r => setTimeout(r, 200));
-                    }
-                    if (!isConnected) return; // bağlanamazsa normal login ekranı kalır
-
-                    try {
-                        const yanit = await sendMQTT('KONTROL', '', cachedTC.tc);
-                        if (yanit?.status === 'OK') {
-                            state.tcNo        = cachedTC.tc;
-                            state.personelAd  = yanit.personel?.ad   || cachedTC.ad   || '';
-                            state.personelSoyad = yanit.personel?.soyad || cachedTC.soyad || '';
-                            state.kurumAdi    = yanit.personel?.kurum_adi  || cachedTC.kurumAdi  || '';
-                            state.kurumKodu   = yanit.personel?.kurum_kodu || cachedTC.kurumKodu || '';
-                            // Cache'i taze verilerle güncelle
-                            tcCacheKaydet(state.tcNo, state.personelAd, state.personelSoyad, state.kurumAdi, state.kurumKodu);
-                            // Kurum adını UI'ya yaz
-                            _kurumGoster(state.kurumAdi);
-
-                            if (yanit.aktif_islem) {
-                                state.aktifIslem = {
-                                    birim_kodu: yanit.aktif_islem.birim_kodu,
-                                    birim_adi:  yanit.aktif_islem.birim_adi,
-                                    ozellikli:  yanit.aktif_islem.ozellikli || false,
-                                    baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString(),
-                                    temizlik_id: yanit.aktif_islem.id || null
-                                };
-                                if (state.aktifIslem.temizlik_id) {
-                                    localStorage.setItem('mgd-aktif-temizlik-id', String(state.aktifIslem.temizlik_id));
-                                }
-                                showJobPage();
-                            } else {
-                                state.aktifIslem = null;
-                                showQRPage();
-                            }
-                        } else {
-                            // Sunucu yanıtı OK değil — cache korunur, login ekranı gösterilir
-                            // (geçici bağlantı sorunu olabilir, cache silinmez)
-                        }
-                    } catch(err) {
-                        // Hata olursa sessizce geç, login ekranı kalır
-                        console.warn('[TC Cache] Otomatik giriş başarısız:', err.message);
-                    }
-                };
-                autoLogin();
-            }
+            // autoLogin, dismissWelcome kapandıktan sonra _runAutoLogin() ile tetiklenir
         });
+
+        // ==================== TC CACHE AUTO LOGIN ====================
+        async function _runAutoLogin(cachedTC) {
+            // MQTT bağlanmasını bekle (max 10 sn)
+            for (let i = 0; i < 50; i++) {
+                if (isConnected) break;
+                await new Promise(r => setTimeout(r, 200));
+            }
+
+            const _showLoginForm = () => {
+                const _fg = document.getElementById('tc-input');
+                if (_fg) _fg.closest('.form-group').style.display = '';
+                const _bl = document.getElementById('btn-login');
+                if (_bl) _bl.style.display = '';
+                const _hint = document.getElementById('login-cache-hint');
+                if (_hint) _hint.classList.add('hidden');
+            };
+
+            if (!isConnected) {
+                console.warn('[TC Cache] MQTT bağlanamadı, login ekranı gösteriliyor');
+                _showLoginForm();
+                return;
+            }
+
+            try {
+                const yanit = await sendMQTT('KONTROL', '', cachedTC.tc);
+                if (yanit?.status === 'OK') {
+                    state.tcNo          = cachedTC.tc;
+                    state.personelAd    = yanit.personel?.ad       || cachedTC.ad       || '';
+                    state.personelSoyad = yanit.personel?.soyad    || cachedTC.soyad    || '';
+                    state.kurumAdi      = yanit.personel?.kurum_adi  || cachedTC.kurumAdi  || '';
+                    state.kurumKodu     = yanit.personel?.kurum_kodu || cachedTC.kurumKodu || '';
+                    tcCacheKaydet(state.tcNo, state.personelAd, state.personelSoyad, state.kurumAdi, state.kurumKodu);
+                    _kurumGoster(state.kurumAdi);
+
+                    if (yanit.aktif_islem) {
+                        state.aktifIslem = {
+                            birim_kodu:    yanit.aktif_islem.birim_kodu,
+                            birim_adi:     yanit.aktif_islem.birim_adi,
+                            ozellikli:     yanit.aktif_islem.ozellikli || false,
+                            baslama_zamani: yanit.aktif_islem.baslama_zamani || new Date().toISOString(),
+                            temizlik_id:   yanit.aktif_islem.id || null
+                        };
+                        if (state.aktifIslem.temizlik_id) {
+                            localStorage.setItem('mgd-aktif-temizlik-id', String(state.aktifIslem.temizlik_id));
+                        }
+                        showJobPage();
+                    } else {
+                        state.aktifIslem = null;
+                        showQRPage();
+                    }
+                } else {
+                    // Sunucu HATA döndü — login formunu göster
+                    _showLoginForm();
+                }
+            } catch(err) {
+                console.warn('[TC Cache] Otomatik giriş başarısız:', err.message);
+                _showLoginForm();
+            }
+        }
 
         // ==================== PWA INSTALL ====================
         let pwaInstallPrompt = null;
@@ -2405,18 +2399,27 @@
                 wp.classList.add('dismissing');
                 setTimeout(() => {
                     wp.classList.add('hidden');
-                    // Cache varsa bilgi notu göster
                     const _cache = tcCacheOku();
                     if (_cache) {
+                        // Cache var — TC alanını gizle, spinner göster, autoLogin başlat
+                        showPage('login');
+                        const _fg = document.getElementById('tc-input');
+                        if (_fg) _fg.closest('.form-group').style.display = 'none';
+                        const _bl = document.getElementById('btn-login');
+                        if (_bl) _bl.style.display = 'none';
                         const _hint = document.getElementById('login-cache-hint');
                         if (_hint) {
-                            _hint.innerHTML = `<div style="background:rgba(59,107,255,0.12); border:1px solid rgba(59,107,255,0.25); border-radius:10px; padding:10px 14px; margin-top:12px; font-size:12px; color:#7a9fff; text-align:center;">
-                                🔄 <b>${_cache.ad} ${_cache.soyad}</b> olarak otomatik giriş deneniyor...
+                            _hint.innerHTML = `<div style="background:rgba(59,107,255,0.12); border:1px solid rgba(59,107,255,0.25); border-radius:10px; padding:16px; margin-top:12px; font-size:13px; color:#7a9fff; text-align:center;">
+                                <span class="loading" style="border-top-color:#7a9fff;"></span>
+                                <b>${_cache.ad} ${_cache.soyad}</b> olarak giriş yapılıyor...
                             </div>`;
                             _hint.classList.remove('hidden');
                         }
+                        // Splash kapandıktan sonra autoLogin başlat
+                        _runAutoLogin(_cache);
+                    } else {
+                        showPage('login');
                     }
-                    showPage('login');
                 }, 450);
             };
 
