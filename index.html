@@ -2274,6 +2274,15 @@
                 if (_hint) _hint.classList.add('hidden');
             };
 
+            // Splash'ı kesin olarak kapat
+            const _splashKapat = () => {
+                const wp = document.getElementById('page-welcome');
+                if (wp) {
+                    wp.classList.add('dismissing');
+                    wp.classList.add('hidden');
+                }
+            };
+
             if (!isConnected) {
                 console.warn('[TC Cache] MQTT bağlanamadı, login ekranı gösteriliyor');
                 _showLoginForm();
@@ -2291,6 +2300,7 @@
                     tcCacheKaydet(state.tcNo, state.personelAd, state.personelSoyad, state.kurumAdi, state.kurumKodu);
                     _kurumGoster(state.kurumAdi);
 
+                    _splashKapat();
                     if (yanit.aktif_islem) {
                         state.aktifIslem = {
                             birim_kodu:    yanit.aktif_islem.birim_kodu,
@@ -2309,6 +2319,7 @@
                     }
                 } else {
                     // Sunucu HATA döndü — login formunu göster
+                    _splashKapat();
                     _showLoginForm();
                 }
             } catch(err) {
